@@ -18,7 +18,9 @@ package org.springframework.web.reactive.function.server;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
@@ -28,15 +30,16 @@ import reactor.test.StepVerifier;
 
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.testfixture.http.server.reactive.MockServerHttpRequest;
 import org.springframework.web.testfixture.server.MockServerWebExchange;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.entry;
 import static org.springframework.web.reactive.function.server.RequestPredicates.GET;
 import static org.springframework.web.reactive.function.server.RequestPredicates.HEAD;
+import static org.springframework.web.reactive.function.server.RequestPredicates.withAttribute;
 
 /**
  * @author Arjen Poutsma
@@ -239,9 +242,7 @@ public class RouterFunctionBuilderTests {
 	@Test
 	public void attributes() {
 		RouterFunction<ServerResponse> route = RouterFunctions.route()
-				.GET("/atts", request -> ServerResponse.ok().build())
-				.withAttribute("foo", "bar")
-				.withAttributes(atts -> atts.put("baz", "qux"))
+				.GET("/atts", withAttribute("foo", "bar"), request -> ServerResponse.ok().build())
 				.build();
 
 		AttributesTestVisitor visitor = new AttributesTestVisitor();
@@ -250,9 +251,81 @@ public class RouterFunctionBuilderTests {
 	}
 
 
-	private static class AttributesTestVisitor implements RouterFunctions.Visitor {
+	private static class AttributesTestVisitor implements RouterFunctions.Visitor ,RequestPredicates.Visitor{
 
 		boolean visited;
+		Map<String, Object> attributes = new HashMap<>();
+
+		@Override
+		public void route(RequestPredicate predicate, HandlerFunction<?> handlerFunction) {
+			predicate.accept(this);
+			assertThat(this.attributes).isNotEmpty();
+			this.attributes = new HashMap<>();
+		}
+
+		@Override
+		public void withAttribute(String name, Object value) {
+			assertThat(name).isEqualTo("foo");
+			assertThat(value).isEqualTo("bar");
+			this.visited = true;
+			this.attributes.put(name,value);
+		}
+
+		@Override
+		public void method(Set<HttpMethod> methods) {
+		}
+
+		@Override
+		public void path(String pattern) {
+		}
+
+		@Override
+		public void pathExtension(String extension) {
+		}
+
+		@Override
+		public void header(String name, String value) {
+		}
+
+		@Override
+		public void queryParam(String name, String value) {
+		}
+
+		@Override
+		public void startAnd() {
+		}
+
+		@Override
+		public void and() {
+		}
+
+		@Override
+		public void endAnd() {
+		}
+
+		@Override
+		public void startOr() {
+		}
+
+		@Override
+		public void or() {
+		}
+
+		@Override
+		public void endOr() {
+		}
+
+		@Override
+		public void startNegate() {
+		}
+
+		@Override
+		public void endNegate() {
+		}
+
+		@Override
+		public void unknown(RequestPredicate predicate) {
+		}
 
 		@Override
 		public void startNested(RequestPredicate predicate) {
@@ -263,17 +336,7 @@ public class RouterFunctionBuilderTests {
 		}
 
 		@Override
-		public void route(RequestPredicate predicate, HandlerFunction<?> handlerFunction) {
-		}
-
-		@Override
 		public void resources(Function<ServerRequest, Mono<Resource>> lookupFunction) {
-		}
-
-		@Override
-		public void attributes(Map<String, Object> attributes) {
-			assertThat(attributes).containsExactly(entry("foo", "bar"), entry("baz", "qux"));
-			this.visited = true;
 		}
 
 		@Override
@@ -286,10 +349,8 @@ public class RouterFunctionBuilderTests {
 	public void attributesWithoutAndRoute() {
 		HandlerFunction<ServerResponse> handlerFunction = request -> ServerResponse.ok().build();
 		RouterFunction<ServerResponse> routerFunction = RouterFunctions.route()
-				.GET("/api/user", handlerFunction)
-				.withAttribute("foo", "bar")
-				.GET("/api/admin", handlerFunction)
-				.withAttribute("foo", "baz").build();
+				.GET("/api/user", withAttribute("foo", "bar"), handlerFunction)
+				.GET("/api/admin",withAttribute("foo", "baz"), handlerFunction).build();
 
 		AnotherAttributesTestVisitor visitor = new AnotherAttributesTestVisitor();
 		routerFunction.accept(visitor);
@@ -300,30 +361,34 @@ public class RouterFunctionBuilderTests {
 	public void attributesWithAndRoute() {
 		HandlerFunction<ServerResponse> handlerFunction = request -> ServerResponse.ok().build();
 		RouterFunction<ServerResponse> routerFunction = RouterFunctions
-				.route(GET("/api/user"), handlerFunction)
-				.withAttribute("foo", "bar")
-				.andRoute(GET("/api/admin"), handlerFunction)
-				.withAttribute("foo", "baz");
+				.route(GET("/api/user")
+						.and(withAttribute("foo-user", "bar1"))
+						.and(withAttribute("bar-user", "bar2")), handlerFunction)
+				.andRoute(GET("/api/admin")
+						.and(withAttribute("foo-admin", "baz1"))
+						.and(withAttribute("bar-admin", "baz2")), handlerFunction);
 
 		AnotherAttributesTestVisitor visitor = new AnotherAttributesTestVisitor();
 		routerFunction.accept(visitor);
 		assertThat(visitor.visited).isTrue();
 	}
 
-	private static class AnotherAttributesTestVisitor extends AttributesTestVisitor{
+	private static class AnotherAttributesTestVisitor extends AttributesTestVisitor {
 
-		private Map<String, Object> attributes;
+		private Map<String, Object> attributes = new HashMap<>();
 
 		@Override
 		public void route(RequestPredicate predicate, HandlerFunction<?> handlerFunction) {
-			assertThat(this.attributes).isNotNull();
-			this.attributes = null;
+			predicate.accept(this);
+			assertThat(this.attributes).isNotEmpty();
+			System.out.printf("Route predicate %s->%s%nhas attributes %s %n", predicate, handlerFunction, this.attributes);
+			this.attributes = new HashMap<>();
 		}
 
 		@Override
-		public void attributes(Map<String, Object> attributes) {
-			this.attributes = attributes;
-			this.visited = true;
+		public void withAttribute(String name, Object value) {
+			this.attributes.put(name,value);
+			this.visited=true;
 		}
 	}
 

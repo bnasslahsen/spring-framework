@@ -186,6 +186,20 @@ public abstract class RequestPredicates {
 	}
 
 	/**
+	 * Return a {@code RequestPredicate} with the given attribute.
+	 * @param name the attribute name
+	 * @param value the attribute value
+	 * @return a predicate that has the specified attributes
+	 * @since 5.3
+	 */
+	public static RequestPredicate withAttribute(String name, Object value) {
+		Assert.hasLength(name, "Name must not be empty");
+		Assert.notNull(value, "Value must not be null");
+
+		return new AttributesPredicate(name,value);
+	}
+
+	/**
 	 * Return a {@code RequestPredicate} that matches if request's HTTP method is {@code POST}
 	 * and the given {@code pattern} matches against the request path.
 	 * @param pattern the path pattern to match against
@@ -427,8 +441,17 @@ public abstract class RequestPredicates {
 		 * Receive first notification of an unknown predicate.
 		 */
 		void unknown(RequestPredicate predicate);
-	}
 
+		/**
+		 * Add an attribute with the given name and value to the last route built with this builder.
+		 * @param name the attribute name
+		 * @param value the attribute value
+		 * @return this builder
+		 * @since 5.3
+		 */
+		void withAttribute(String name, Object value);
+
+	}
 
 	private static class HttpMethodPredicate implements RequestPredicate {
 
@@ -921,6 +944,27 @@ public abstract class RequestPredicates {
 		}
 	}
 
+	private static class AttributesPredicate implements RequestPredicate {
+
+		private String name;
+		private Object value;
+
+		public AttributesPredicate(String name, Object value) {
+			this.name = name;
+			this.value = value;
+		}
+
+		@Override
+		public boolean test(ServerRequest request) {
+			return true;
+		}
+
+		@Override
+		public void accept(Visitor visitor) {
+			visitor.withAttribute(this.name, this.value);
+		}
+
+	}
 
 	private static class SubPathServerRequestWrapper implements ServerRequest {
 

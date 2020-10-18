@@ -16,15 +16,20 @@
 
 package org.springframework.web.reactive.function.server;
 
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
 import reactor.core.publisher.Mono;
 
 import org.springframework.core.io.Resource;
+import org.springframework.http.HttpMethod;
 import org.springframework.lang.Nullable;
+
+import static org.springframework.web.reactive.function.server.RequestPredicates.withAttribute;
 
 /**
  * @author Arjen Poutsma
@@ -49,8 +54,7 @@ public class CustomRouteBuilder {
 		OperationBuilder builder = new OperationBuilder();
 		operationsConsumer.accept(builder);
 
-		this.delegate.GET(pattern, handlerFunction)
-				.withAttribute(OPERATION_ATTRIBUTE, builder.operation);
+		this.delegate.GET(pattern,withAttribute(OPERATION_ATTRIBUTE, builder.operation), handlerFunction);
 
 		return this;
 	}
@@ -113,20 +117,20 @@ public class CustomRouteBuilder {
 		}
 	}
 
-	static class AttributesVisitor implements RouterFunctions.Visitor {
+	static class AttributesVisitor implements RouterFunctions.Visitor, RequestPredicates.Visitor {
 
 		@Nullable
-		private Map<String, Object> attributes;
-
-		@Override
-		public void attributes(Map<String, Object> attributes) {
-			this.attributes = attributes;
-		}
+		private Map<String, Object> attributes = new HashMap<>();
 
 		@Override
 		public void route(RequestPredicate predicate, HandlerFunction<?> handlerFunction) {
-			System.out.printf("Route predicate %s->%s%nhas attributes %s", predicate, handlerFunction, this.attributes);
-			this.attributes = null;
+			predicate.accept(this);
+			System.out.printf("Route predicate %s->%s%nhas attributes %s %n", predicate, handlerFunction, this.attributes);
+			this.attributes = new HashMap<>();
+		}
+		@Override
+		public void withAttribute(String name, Object value) {
+			attributes.put(name,value);
 		}
 
 		@Override
@@ -150,6 +154,76 @@ public class CustomRouteBuilder {
 		public void unknown(RouterFunction<?> routerFunction) {
 			// TODO
 
+		}
+
+		@Override
+		public void method(Set<HttpMethod> methods) {
+			// TODO
+		}
+
+		@Override
+		public void path(String pattern) {
+			// TODO
+		}
+
+		@Override
+		public void pathExtension(String extension) {
+			// TODO
+		}
+
+		@Override
+		public void header(String name, String value) {
+			// TODO
+		}
+
+		@Override
+		public void queryParam(String name, String value) {
+			// TODO
+		}
+
+		@Override
+		public void startAnd() {
+			// TODO
+		}
+
+		@Override
+		public void and() {
+			// TODO
+		}
+
+		@Override
+		public void endAnd() {
+			// TODO
+		}
+
+		@Override
+		public void startOr() {
+			// TODO
+		}
+
+		@Override
+		public void or() {
+			// TODO
+		}
+
+		@Override
+		public void endOr() {
+			// TODO
+		}
+
+		@Override
+		public void startNegate() {
+			// TODO
+		}
+
+		@Override
+		public void endNegate() {
+			// TODO
+		}
+
+		@Override
+		public void unknown(RequestPredicate predicate) {
+			// TODO
 		}
 	}
 
